@@ -27,6 +27,7 @@
 // NEVER EVER use childCount as a method of checking if a Key Value has children! 
 // It shares memory with the length of the string value! USE hasChildren INSTEAD!!
 
+#include <cstddef>
 
 enum class KeyValueErrorCode
 {

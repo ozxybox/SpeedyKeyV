@@ -213,14 +213,14 @@ KeyValueRoot::~KeyValueRoot()
 
 	for (KeyValuePool<char*>::PoolChunk* current = writePoolStrings.firstPool; current != writePoolStrings.currentPool; current = current->next)
 	{
-		for (int i = 0; i < current->length; i++)
+		for (size_t i = 0; i < current->length; i++)
 		{
 			delete[] current->pool[i];
 		}
 	}
 
 	// The last pool might not be totally filled out...
-	for (int i = 0; i < writePoolStrings.position; i++)
+	for (size_t i = 0; i < writePoolStrings.position; i++)
 	{
 		delete[] writePoolStrings.currentPool->pool[i];
 	}
@@ -278,7 +278,7 @@ void KeyValue::Solidify()
 
 	// Is it worth block copying out of the pool?
 
-	for (int i = 0; i < childCount; i++)
+	for (size_t i = 0; i < childCount; i++)
 	{
 		memcpy(&newArray[i], current, sizeof(KeyValue));
 
@@ -313,7 +313,7 @@ KeyValue& KeyValue::Get(const char* key)
 	// If we're solid, we can use a quicker route
 	if (rootNode->solidified)
 	{
-		for (int i = 0; i < childCount; i++)
+		for (size_t i = 0; i < childCount; i++)
 		{
 			if (strncmp(children[i].key.string, key, children[i].key.length) == 0)
 			{
@@ -326,7 +326,7 @@ KeyValue& KeyValue::Get(const char* key)
 	else
 	{
 		KeyValue* current = children;
-		for (int i = 0; i < childCount; i++)
+		for (size_t i = 0; i < childCount; i++)
 		{
 			if (strncmp(current->key.string, key, current->key.length) == 0)
 			{
@@ -609,7 +609,7 @@ end:
 void KeyValue::BuildData(char*& destBuffer)
 {
 	KeyValue* current = children;
-	for (int i = 0; i < childCount; i++)
+	for (size_t i = 0; i < childCount; i++)
 	{
 		// Copy the string in, null terminate it, and increment the destBuffer
 		memcpy(destBuffer, current->key.string, current->key.length);
