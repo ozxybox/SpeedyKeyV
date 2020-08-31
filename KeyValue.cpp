@@ -261,6 +261,9 @@ KeyValueErrorCode KeyValueRoot::Parse(const char* str)
 		char* temp = stringBuffer;
 		BuildData(temp);
 	}
+
+	// All good. Return no error
+	return KeyValueErrorCode::NO_ERROR;
 }
 
 
