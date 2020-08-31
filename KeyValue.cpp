@@ -1,7 +1,6 @@
 #include "KeyValue.h"
 #include <cstring>
 #include <cstdlib>
-#include <cassert>
 
 // For min and max
 #include <algorithm>
@@ -18,6 +17,7 @@
 
 #define POOL_STARTING_LENGTH 0
 #define POOL_INCREMENT_LENGTH 4
+
 
 //////////////////////
 // Helper Functions //
@@ -271,6 +271,15 @@ KeyValueErrorCode KeyValueRoot::Parse(const char* str)
 // Key Value //
 ///////////////
 
+// An invalid KV for use in returns with references
+KeyValue& KeyValue::GetInvalid()
+{
+	static const KeyValue invalid(true);
+
+	return const_cast<KeyValue&>(invalid);
+}
+
+
 void KeyValue::Solidify()
 {
 	KeyValue* newArray = new KeyValue[childCount];
@@ -311,7 +320,8 @@ KeyValue& KeyValue::operator[](size_t index)
 
 KeyValue& KeyValue::Get(const char* key)
 {
-	assert(hasChildren && childCount > 0);
+	if (!hasChildren || childCount <= 0 || !IsValid())
+		return GetInvalid();
 
 	// If we're solid, we can use a quicker route
 	if (rootNode->solidified)
@@ -324,7 +334,6 @@ KeyValue& KeyValue::Get(const char* key)
 			}
 		}
 
-		assert(false);
 	}
 	else
 	{
@@ -338,13 +347,16 @@ KeyValue& KeyValue::Get(const char* key)
 			current = current->next;
 		}
 
-		assert(false);
 	}
+
+	return GetInvalid();
 }
 
 KeyValue& KeyValue::Get(size_t index)
 {
-	assert(hasChildren && childCount > 0 && index >= 0 && index < childCount);
+	// If we cant get something, return invalid
+	if(!hasChildren || childCount <= 0 || index < 0 || index >= childCount || !IsValid())
+		return GetInvalid();
 
 	if (rootNode->solidified)
 	{
@@ -429,6 +441,30 @@ KeyValue* KeyValue::AddNode(const char* key)
 	childCount++;
 	
 	return node;
+}
+
+bool KeyValue::IsValid()
+{
+	KeyValue* invalid = &GetInvalid();
+	return next != invalid && lastChild != invalid;
+}
+
+KeyValue::KeyValue(bool invalid)
+{
+	if (invalid)
+	{
+		// Zero the key and the value
+		key.string = nullptr;
+		key.length = 0;
+		value.string = nullptr;
+		value.length = 0;
+		hasChildren = false;
+
+		// No family
+		rootNode = nullptr;
+		next = this;
+		lastChild = this;
+	}
 }
 
 KeyValue::~KeyValue()

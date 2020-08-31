@@ -53,7 +53,7 @@ class KeyValuePool;
 class KeyValue
 {
 public:
-
+	KeyValue() {};
 
 	KeyValue& operator[](const char* key);
 	KeyValue& operator[](size_t index);
@@ -70,8 +70,16 @@ public:
 
 	void ToString(char* str, size_t maxLength) { ToString(str, maxLength, 0); if (maxLength > 0) str[0] = '\0'; }
 
+	bool IsValid();
+
 protected:
+	// This is used for creating the invalid kv
+	// Could be better?
+	KeyValue(bool invalid);
+
+	// Deleting should really only be done by the root
 	~KeyValue();
+
 
 	KeyValue* CreateKVPair(kvString_t key, kvString_t string, KeyValuePool<KeyValue>& pool);
 
@@ -81,6 +89,9 @@ protected:
 
 
 	void ToString(char*& str, size_t& maxLength, int tabCount);
+
+	// An invalid KV for use in returns with references
+	static KeyValue& GetInvalid();
 
 	KeyValueRoot* rootNode;
 
