@@ -69,6 +69,7 @@ public:
 
 
 	void ToString(char* str, size_t maxLength) { ToString(str, maxLength, 0); if (maxLength > 0) str[0] = '\0'; }
+	char* ToString();
 
 protected:
 	~KeyValue();
@@ -81,6 +82,7 @@ protected:
 
 
 	void ToString(char*& str, size_t& maxLength, int tabCount);
+	size_t ToStringLength(int tabCount);
 
 	KeyValueRoot* rootNode;
 

@@ -698,3 +698,51 @@ void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount)
 		}
 	}
 }
+
+char* KeyValue::ToString()
+{
+	// Length of all kvs + 1 for the null terminator
+	size_t length = ToStringLength(0) + 1;
+
+	char* str = new char[length];
+	
+	ToString(str, length);
+
+	// Null terminate it
+	str[length - 1] = 0;
+	
+	return str;
+}
+
+size_t KeyValue::ToStringLength(int tabCount)
+{
+	size_t len = 0;
+	for (KeyValue* current = children; current; current = current->next)
+	{
+		len += tabCount * sizeof(TAB_STYLE);
+
+		// String container + Key + String container 
+		len += sizeof(STRING_CONTAINER) + current->key.length + sizeof(STRING_CONTAINER);
+
+		if (current->hasChildren)
+		{
+			// If we have kids, new line + tabs + start block + new line
+			len += 1 + tabCount * sizeof(TAB_STYLE) + sizeof(BLOCK_BEGIN) + 1;
+
+			len += current->ToStringLength(tabCount + 1);
+
+			// End line + tabs + end block + end line
+			len += 1 + tabCount * sizeof(TAB_STYLE) + sizeof(BLOCK_END) + 1;
+		}
+		else
+		{
+			// If we don't have any children, we just have a value
+
+			// Space + string container + value + string container + new line
+			len += 1 + sizeof(STRING_CONTAINER) + current->value.length + sizeof(STRING_CONTAINER) + 1;
+
+		}
+	}
+
+	return len;
+}
