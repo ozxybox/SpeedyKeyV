@@ -1,0 +1,6 @@
+﻿[Dd]ebug/
+[Rr]elease/
+CMakeFiles/
+*.cmake
+*.vcxproj*
+*.sln
