@@ -328,7 +328,7 @@ KeyValue& KeyValue::Get(const char* key)
 	{
 		for (size_t i = 0; i < childCount; i++)
 		{
-			if (strncmp(children[i].key.string, key, children[i].key.length) == 0)
+			if (strcmp(children[i].key.string, key) == 0)
 			{
 				return children[i];
 			}
@@ -340,7 +340,7 @@ KeyValue& KeyValue::Get(const char* key)
 		KeyValue* current = children;
 		for (size_t i = 0; i < childCount; i++)
 		{
-			if (strncmp(current->key.string, key, current->key.length) == 0)
+			if (strcmp(current->key.string, key) == 0)
 			{
 				return *current;
 			}
