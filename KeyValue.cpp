@@ -405,6 +405,8 @@ KeyValue* KeyValue::Add(const char* key, const char* value)
 	}
 	lastChild = newKV;
 	childCount++;
+
+	return newKV;
 }
 
 KeyValue* KeyValue::AddNode(const char* key)
