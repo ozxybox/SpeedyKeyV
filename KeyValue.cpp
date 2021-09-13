@@ -430,6 +430,7 @@ KeyValue* KeyValue::AddNode(const char* key)
 	node->lastChild = nullptr;
 	node->childCount = 0;
 	node->next = nullptr;
+	node->hasChildren = true;
 
 	if (childCount == 0)
 	{
