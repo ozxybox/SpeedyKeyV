@@ -316,7 +316,11 @@ KeyValue& KeyValue::InternalGet(const char* key) const
 	{
 		for (size_t i = 0; i < childCount; i++)
 		{
+		#ifdef _WIN32
 			if (stricmp(children[i].key.string, key) == 0)
+		#else
+			if (strcasecmp(children[i].key.string, key) == 0)
+		#endif
 			{
 				return children[i];
 			}
@@ -328,7 +332,11 @@ KeyValue& KeyValue::InternalGet(const char* key) const
 		KeyValue* current = children;
 		for (size_t i = 0; i < childCount; i++)
 		{
+		#ifdef _WIN32
 			if (stricmp(current->key.string, key) == 0)
+		#else
+			if (strcasecmp(current->key.string, key) == 0)
+		#endif
 			{
 				return *current;
 			}
