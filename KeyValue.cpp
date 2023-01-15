@@ -35,9 +35,11 @@ inline bool IsWhitespace(char c)
 }
 
 // Is c a character used by something else?
-inline bool IsSpecialCharacter(char c)
+inline bool IsSpecialCharacter(char c, char cc)
 {
-	return c == STRING_CONTAINER || c == BLOCK_BEGIN || c == BLOCK_END || c == SINGLE_LINE_COMMENT[0];
+	return c == STRING_CONTAINER || c == BLOCK_BEGIN || c == BLOCK_END || 
+		// If it's a line comment then it should always have another / right after the first one
+		(c == SINGLE_LINE_COMMENT[0] && cc == SINGLE_LINE_COMMENT[1]);
 }
 
 // Ends on the first character after whitespace
@@ -93,7 +95,7 @@ kvString_t ReadQuotelessString(const char*& str)
 	inset.string = const_cast<char*>(str);
 
 	// Read until whitespace, special character, or end of string 
-	for (; !IsWhitespace(*str) && !IsSpecialCharacter(*str); str++);
+	for (; !IsWhitespace(*str) && !IsSpecialCharacter(*str, *str+1); str++);
 
 	inset.length = str - inset.string;
 	return inset;
