@@ -316,7 +316,7 @@ KeyValue& KeyValue::InternalGet(const char* key) const
 	{
 		for (size_t i = 0; i < childCount; i++)
 		{
-			if (strcmp(children[i].key.string, key) == 0)
+			if (stricmp(children[i].key.string, key) == 0)
 			{
 				return children[i];
 			}
@@ -328,7 +328,7 @@ KeyValue& KeyValue::InternalGet(const char* key) const
 		KeyValue* current = children;
 		for (size_t i = 0; i < childCount; i++)
 		{
-			if (strcmp(current->key.string, key) == 0)
+			if (stricmp(current->key.string, key) == 0)
 			{
 				return *current;
 			}
