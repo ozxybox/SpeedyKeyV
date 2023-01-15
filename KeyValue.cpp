@@ -141,7 +141,7 @@ void KeyValuePool<T>::Drain()
 }
 
 template<typename T>
-T* KeyValuePool<T>::Get()
+T* KeyValuePool<T>::Create()
 {
 	if (!IsFull())
 	{
@@ -179,7 +179,6 @@ KeyValuePool<T>::PoolChunk::PoolChunk(size_t length, PoolChunk* last) : PoolChun
 ////////////////////
 // Key Value Root //
 ////////////////////
-
 
 KeyValueRoot::KeyValueRoot(const char* str) : KeyValueRoot()
 {
@@ -248,7 +247,6 @@ void KeyValueRoot::Solidify()
 KeyValueErrorCode KeyValueRoot::Parse(const char* str)
 {
 
-
 	KeyValueErrorCode err = KeyValue::Parse(str, true);
 	if (err != KeyValueErrorCode::NO_ERROR)
 		return err;
@@ -308,17 +306,7 @@ void KeyValue::Solidify()
 }
 
 
-KeyValue& KeyValue::operator[](const char* key)
-{
-	return Get(key);
-}
-
-KeyValue& KeyValue::operator[](size_t index)
-{
-	return Get(index);
-}
-
-KeyValue& KeyValue::Get(const char* key)
+KeyValue& KeyValue::InternalGet(const char* key) const
 {
 	if (!hasChildren || childCount <= 0 || !IsValid())
 		return GetInvalid();
@@ -352,7 +340,7 @@ KeyValue& KeyValue::Get(const char* key)
 	return GetInvalid();
 }
 
-KeyValue& KeyValue::Get(size_t index)
+KeyValue& KeyValue::InternalGet(size_t index) const
 {
 	// If we cant get something, return invalid
 	if(!hasChildren || childCount <= 0 || index < 0 || index >= childCount || !IsValid())
@@ -373,6 +361,7 @@ KeyValue& KeyValue::Get(size_t index)
 	}
 }
 
+
 KeyValue* KeyValue::Add(const char* key, const char* value)
 {
 	// Can't add to a solid kv without kids!
@@ -381,13 +370,13 @@ KeyValue* KeyValue::Add(const char* key, const char* value)
 
 
 	size_t keyLength = strlen(key);
-	char*& copiedKey = *rootNode->writePoolStrings.Get();
+	char*& copiedKey = *rootNode->writePoolStrings.Create();
 	copiedKey = new char[keyLength + 1];
 	memcpy(copiedKey, key, keyLength);
 	copiedKey[keyLength] = '\0';
 
 	size_t valueLength = strlen(value);
-	char*& copiedValue = *rootNode->writePoolStrings.Get();
+	char*& copiedValue = *rootNode->writePoolStrings.Create();
 	copiedValue = new char[valueLength + 1];
 	memcpy(copiedValue, value, valueLength);
 	copiedValue[valueLength] = '\0';
@@ -415,10 +404,10 @@ KeyValue* KeyValue::AddNode(const char* key)
 	if (rootNode->solidified && !hasChildren)
 		return nullptr;
 
-	KeyValue* node = rootNode->writePool.Get();
+	KeyValue* node = rootNode->writePool.Create();
 
 	size_t keyLength = strlen(key);
-	char*& copiedKey = *rootNode->writePoolStrings.Get();
+	char*& copiedKey = *rootNode->writePoolStrings.Create();
 	copiedKey = new char[keyLength + 1];
 	memcpy(copiedKey, key, keyLength);
 	copiedKey[keyLength] = '\0';
@@ -446,7 +435,7 @@ KeyValue* KeyValue::AddNode(const char* key)
 	return node;
 }
 
-bool KeyValue::IsValid()
+bool KeyValue::IsValid() const
 {
 	KeyValue* invalid = &GetInvalid();
 	return next != invalid && lastChild != invalid;
@@ -480,7 +469,7 @@ KeyValue::~KeyValue()
 
 KeyValue* KeyValue::CreateKVPair(kvString_t key, kvString_t string, KeyValuePool<KeyValue>& pool)
 {
-	KeyValue* kv = pool.Get();
+	KeyValue* kv = pool.Create();
 	kv->key = key;
 	kv->value = string;
 	kv->hasChildren = false;
@@ -580,7 +569,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 		}
 		case BLOCK_BEGIN:
 		{
-			pair = rootNode->readPool.Get();
+			pair = rootNode->readPool.Create();
 			pair->rootNode = rootNode;
 
 			//skip over the BLOCK_BEGIN
@@ -702,7 +691,7 @@ void TabFill(char*& str, size_t& maxLength, int tabCount)
 	}
 }
 
-void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount)
+void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount) const
 {
 	// Make a solidified version?
 
@@ -741,7 +730,7 @@ void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount)
 	}
 }
 
-char* KeyValue::ToString()
+char* KeyValue::ToString() const
 {
 	// Length of all kvs + 1 for the null terminator
 	size_t length = ToStringLength(0) + 1;
@@ -756,7 +745,7 @@ char* KeyValue::ToString()
 	return str;
 }
 
-size_t KeyValue::ToStringLength(int tabCount)
+size_t KeyValue::ToStringLength(int tabCount) const
 {
 	size_t len = 0;
 	for (KeyValue* current = children; current; current = current->next)

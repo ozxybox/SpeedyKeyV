@@ -41,6 +41,11 @@ enum class KeyValueErrorCode
 // Little helper struct for keeping track of strings
 struct kvString_t
 {
+	kvString_t() :
+		string(nullptr), length(0) {}
+	kvString_t(char* _string, size_t _length) :
+		string(_string), length(_length) {}
+
 	char* string;
 	size_t length;
 };
@@ -53,14 +58,16 @@ class KeyValuePool;
 class KeyValue
 {
 public:
-	KeyValue() {};
 
-	KeyValue& operator[](const char* key);
-	KeyValue& operator[](size_t index);
+	KeyValue& Get(const char* key)				{ return InternalGet( key ); }
+	const KeyValue& Get(const char* key) const	{ return (const KeyValue&)InternalGet( key ); }
+	KeyValue& Get(size_t index)					{ return InternalGet( index ); }
+	const KeyValue& Get(size_t index) const		{ return (const KeyValue&)InternalGet( index ); }
 
-	KeyValue& Get(const char* key);
-	KeyValue& Get(size_t index);
-
+	inline KeyValue& operator[](const char* key) { return Get(key); }
+	inline const KeyValue& operator[](const char* key) const { return Get(key); }
+	inline KeyValue& operator[](size_t index) { return Get(index); }
+	inline const KeyValue& operator[](size_t index) const { return Get(index); }
 
 
 	// These two only work for classes with children!
@@ -68,12 +75,30 @@ public:
 	KeyValue* AddNode(const char* key);
 
 
-	void ToString(char* str, size_t maxLength) { ToString(str, maxLength, 0); if (maxLength > 0) str[0] = '\0'; }
-	char* ToString();
+	void ToString(char* str, size_t maxLength) const { ToString(str, maxLength, 0); if (maxLength > 0) str[0] = '\0'; }
+	char* ToString() const;
 
-	bool IsValid();
+	bool IsValid() const;
+
+
+	const kvString_t& Key() const { return key; }
+
+	bool HasChildren() const { return hasChildren; }
+	size_t ChildCount() const { return hasChildren ? childCount : 0; }
+	KeyValue* Children() const { return hasChildren ? children : nullptr; }
+
+	kvString_t Value() const { return hasChildren ? kvString_t(nullptr, 0u) : value; }
+	
+	KeyValue* LastChild() { return lastChild; }
+	const KeyValue* LastChild() const { return lastChild; }
+
+	KeyValue* Next() { return next; }
+	const KeyValue* Next() const { return next; }
 
 protected:
+
+	KeyValue() {}
+
 	// This is used for creating the invalid kv
 	// Could be better?
 	KeyValue(bool invalid);
@@ -81,6 +106,8 @@ protected:
 	// Deleting should really only be done by the root
 	~KeyValue();
 
+	KeyValue& InternalGet(const char* key) const;
+	KeyValue& InternalGet(size_t index) const;
 
 	KeyValue* CreateKVPair(kvString_t key, kvString_t string, KeyValuePool<KeyValue>& pool);
 
@@ -89,15 +116,13 @@ protected:
 	void Solidify();
 
 
-	void ToString(char*& str, size_t& maxLength, int tabCount);
-	size_t ToStringLength(int tabCount);
+	void ToString(char*& str, size_t& maxLength, int tabCount) const;
+	size_t ToStringLength(int tabCount) const;
 
 	// An invalid KV for use in returns with references
 	static KeyValue& GetInvalid();
 
-	KeyValueRoot* rootNode;
 
-public:
 	kvString_t key;
 
 	// These two structs must be the same size!!
@@ -117,6 +142,8 @@ public:
 	bool hasChildren;
 
 	KeyValue* next;
+
+	KeyValueRoot* rootNode;
 };
 
 template<typename T>
@@ -128,7 +155,7 @@ private:
 
 	void Drain();
 
-	T* Get();
+	T* Create();
 
 	inline bool IsFull() { return position >= currentPool->length; }
 
