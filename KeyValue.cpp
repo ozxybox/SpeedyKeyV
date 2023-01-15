@@ -18,6 +18,9 @@
 #define POOL_STARTING_LENGTH 0
 #define POOL_INCREMENT_LENGTH 4
 
+#ifdef _WIN32
+#define strcasecmp stricmp
+#endif
 
 //////////////////////
 // Helper Functions //
@@ -316,11 +319,7 @@ KeyValue& KeyValue::InternalGet(const char* key) const
 	{
 		for (size_t i = 0; i < childCount; i++)
 		{
-		#ifdef _WIN32
-			if (stricmp(children[i].key.string, key) == 0)
-		#else
 			if (strcasecmp(children[i].key.string, key) == 0)
-		#endif
 			{
 				return children[i];
 			}
@@ -332,11 +331,7 @@ KeyValue& KeyValue::InternalGet(const char* key) const
 		KeyValue* current = children;
 		for (size_t i = 0; i < childCount; i++)
 		{
-		#ifdef _WIN32
-			if (stricmp(current->key.string, key) == 0)
-		#else
 			if (strcasecmp(current->key.string, key) == 0)
-		#endif
 			{
 				return *current;
 			}
