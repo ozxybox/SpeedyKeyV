@@ -10,6 +10,7 @@
 #define BLOCK_BEGIN '{'
 #define BLOCK_END '}'
 #define STRING_CONTAINER '"'
+#define ESCAPE_CHARACTER '\\'
 
 #define SINGLE_LINE_COMMENT "//"
 
@@ -71,7 +72,9 @@ KeyValueErrorCode ReadQuotedString(const char*& str, kvString_t& inset)
 
 	inset.string = const_cast<char*>(str);
 
-	for (char c = *str; c && c != STRING_CONTAINER; c = *++str);
+	for (char c = *str; c && c != STRING_CONTAINER; c = *++str)
+        if(c == ESCAPE_CHARACTER && *(str+1) == STRING_CONTAINER)
+            ++str;
 
 	if (!*str)
 	{
