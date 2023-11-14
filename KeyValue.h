@@ -61,13 +61,15 @@ public:
 
 	KeyValue& Get(const char* key)				{ return InternalGet( key ); }
 	const KeyValue& Get(const char* key) const	{ return (const KeyValue&)InternalGet( key ); }
-	KeyValue& Get(size_t index)					{ return InternalGet( index ); }
-	const KeyValue& Get(size_t index) const		{ return (const KeyValue&)InternalGet( index ); }
+	[[deprecated]] KeyValue& Get(size_t index)					{ return InternalAt( index ); }
+	[[deprecated]] const KeyValue& Get(size_t index) const		{ return (const KeyValue&)InternalAt( index ); }
+	KeyValue& At(size_t index)					{ return InternalAt( index ); }
+	const KeyValue& At(size_t index) const		{ return (const KeyValue&)InternalAt( index ); }
 
 	inline KeyValue& operator[](const char* key) { return Get(key); }
 	inline const KeyValue& operator[](const char* key) const { return Get(key); }
-	inline KeyValue& operator[](size_t index) { return Get(index); }
-	inline const KeyValue& operator[](size_t index) const { return Get(index); }
+	inline KeyValue& operator[](size_t index) { return At(index); }
+	inline const KeyValue& operator[](size_t index) const { return At(index); }
 
 
 	// These two only work for classes with children!
@@ -107,7 +109,7 @@ protected:
 	~KeyValue();
 
 	KeyValue& InternalGet(const char* key) const;
-	KeyValue& InternalGet(size_t index) const;
+	KeyValue& InternalAt(size_t index) const;
 
 	KeyValue* CreateKVPair(kvString_t key, kvString_t string, KeyValuePool<KeyValue>& pool);
 
