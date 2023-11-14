@@ -345,7 +345,7 @@ KeyValue& KeyValue::InternalGet(const char* key) const
 	return GetInvalid();
 }
 
-KeyValue& KeyValue::InternalGet(size_t index) const
+KeyValue& KeyValue::InternalAt(size_t index) const
 {
 	// If we cant get something, return invalid
 	if(!hasChildren || childCount <= 0 || index < 0 || index >= childCount || !IsValid())
