@@ -15,8 +15,8 @@ kv.Add("CoolKey", "CoolValue"); // Adds the KeyValue pair "CoolKey" "CoolValue"
 kv.Solidify(); // Use this if you have a big file and need quicker access times. Warning: It will make the kv read-only and deletes slower!
 
 // Reading from the KeyValue
-printf(kv["AwesomeNode"]["Taco"].value.string); // Accesses the node AwesomeNode's child, Taco, and prints Taco's value, "Time!"
-printf(kv[2].value.string); // Accesses the third pair, CoolKey, and prints its value, CoolValue
+printf(kv["AwesomeNode"]["Taco"].Value().string); // Accesses the node AwesomeNode's child, Taco, and prints Taco's value, "Time!"
+printf(kv[2].Value().string); // Accesses the third pair, CoolKey, and prints its value, CoolValue
 
 // Printing the KeyValue
 char printBuffer[1024];

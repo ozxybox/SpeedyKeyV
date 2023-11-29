@@ -1,3 +1,8 @@
+//
+// SpeedyKeyV
+// https://github.com/ozxybox/SpeedyKeyV
+//
+
 #pragma once
 
 ///////////////
@@ -15,17 +20,14 @@
 // kv.Solidify(); // Use this if you have a big file and need quicker access times. Warning: It will make the kv read-only!
 //
 // // Reading from the KeyValue
-// printf(kv["AwesomeNode"]["Taco"].value.string); // Accesses the node AwesomeNode's child, Taco, and prints Taco's value
-// printf(kv[2].value.string); // Accesses the third pair, CoolKey, and prints its value, CoolValue
+// printf(kv["AwesomeNode"]["Taco"].Value().string); // Accesses the node AwesomeNode's child, Taco, and prints Taco's value
+// printf(kv[2].Value().string); // Accesses the third pair, CoolKey, and prints its value, CoolValue
 //
 // // Printing the KeyValue
 // char printBuffer[1024];
 // kv.ToString(printBuffer, 1024); // Prints 1024 characters of the KeyValue to the buffer for printing
 // printf(printBuffer);
 //
-// Notes:
-// NEVER EVER use childCount as a method of checking if a Key Value has children! 
-// It shares memory with the length of the string value! USE hasChildren INSTEAD!!
 
 #include <cstddef>
 

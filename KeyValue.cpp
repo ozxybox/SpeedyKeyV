@@ -1,3 +1,8 @@
+//
+// SpeedyKeyV
+// https://github.com/ozxybox/SpeedyKeyV
+//
+
 #include "KeyValue.h"
 #include <cstring>
 #include <cstdlib>
