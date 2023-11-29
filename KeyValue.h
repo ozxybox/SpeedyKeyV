@@ -35,9 +35,11 @@ enum class KeyValueErrorCode
 {
 	NO_ERROR,
 	INCOMPLETE_BLOCK,
+	INCOMPLETE_PAIR,
 	UNEXPECTED_START_OF_BLOCK,
 	UNEXPECTED_END_OF_BLOCK,
 	INCOMPLETE_STRING,
+	NO_INPUT,
 };
 
 // Little helper struct for keeping track of strings

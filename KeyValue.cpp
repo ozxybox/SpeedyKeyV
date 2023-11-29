@@ -36,7 +36,8 @@
 // Will return true on end of string!
 inline bool IsWhitespace(char c)
 {
-	return (c < '!' || c > '~');
+	// Anything that isn't ASCII is treated as not whitespace
+	return (c < '!' || c > '~') && ( c >= 0 && c <= 127 );
 }
 
 // Is c a character used by something else?
@@ -100,7 +101,7 @@ kvString_t ReadQuotelessString(const char*& str)
 	inset.string = const_cast<char*>(str);
 
 	// Read until whitespace, special character, or end of string 
-	for (; !IsWhitespace(*str) && !IsSpecialCharacter(*str, *str+1); str++);
+	for (; !IsWhitespace(*str) && !IsSpecialCharacter(str[0], str[1]); str++ );
 
 	inset.length = str - inset.string;
 	return inset;
@@ -256,6 +257,8 @@ void KeyValueRoot::Solidify()
 
 KeyValueErrorCode KeyValueRoot::Parse(const char* str)
 {
+	if ( !str )
+		return KeyValueErrorCode::NO_INPUT;
 
 	KeyValueErrorCode err = KeyValue::Parse(str, true);
 	if (err != KeyValueErrorCode::NO_ERROR)
@@ -489,10 +492,9 @@ KeyValue* KeyValue::CreateKVPair(kvString_t key, kvString_t string, KeyValuePool
 
 KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 {
-
 	KeyValue* lastKV = nullptr;
 	char c;
-	for (; *str;)
+	for (;;)
 	{
 		SkipWhitespace(str);
 
@@ -598,12 +600,8 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 			break;
 		}
 		case 0:
-			// If we're root and at the end of the file after this whitespace skip, that means there's no next kv pair. End now
-			if (isRoot)
-				goto end;
-
-			// If we're not root and at the end of the file after this whitespace skip, we've failed to find the block end
-			return KeyValueErrorCode::INCOMPLETE_BLOCK;
+			// Hit EOF before the value
+			return KeyValueErrorCode::INCOMPLETE_PAIR;
 
 		case BLOCK_END:
 			return KeyValueErrorCode::UNEXPECTED_END_OF_BLOCK;
