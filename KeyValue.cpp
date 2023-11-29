@@ -719,7 +719,6 @@ void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount) const
 
 			current->ToString(str, maxLength, tabCount + 1);
 
-			CopyAndShift(str, "\n", maxLength, 1);
 			TabFill(str, maxLength, tabCount);
 			CopyAndShift(str, "}\n", maxLength, 2);
 		}
