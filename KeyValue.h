@@ -202,6 +202,12 @@ public:
 	KeyValueRoot();
 	~KeyValueRoot();
 
+	// No copying! It'll be very expensive!
+	KeyValueRoot( const KeyValueRoot& ) = delete;
+	// No moving! It'll require us to update many references and be expensive!
+	KeyValueRoot( KeyValueRoot&& ) = delete;
+
+
 	// Makes access times faster and decreases memory usage at the cost of irreversibly making the kv read-only and slowing down delete time
 	void Solidify();
 	KeyValueErrorCode Parse(const char* str);

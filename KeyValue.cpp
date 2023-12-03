@@ -446,26 +446,25 @@ KeyValue* KeyValue::AddNode(const char* keyName)
 
 bool KeyValue::IsValid() const
 {
-	KeyValue* invalid = &GetInvalid();
-	return next != invalid && data.node.lastChild != invalid;
+	// The invalid KV is always invalid, and infinite loops are invalid 
+	return this != &GetInvalid()
+		&& next != this && data.node.children != this && data.node.lastChild != this;
 }
 
 KeyValue::KeyValue(bool invalid) : data({})
 {
 	if (invalid)
 	{
-		// Zero the key and the value
+		// Zero the key and root
 		key = { nullptr, 0 };
-		
-		// No family
-		isNode = false;
 		rootNode = nullptr;
+		
+		// Explicitly invalid data
 		next = this;
+		isNode = true;
+		data.node.children = this;
 		data.node.lastChild = this;
-
-		// Empty value
-		data.leaf.value.string = nullptr;
-		data.leaf.value.length = 0;
+		data.node.childCount = 0;
 	}
 }
 
