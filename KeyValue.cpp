@@ -90,7 +90,7 @@ KeyValueErrorCode ReadQuotedString(const char*& str, kvString_t& inset)
 	// Skip over the quote 
 	str++;
 
-	return KeyValueErrorCode::NO_ERROR;
+	return KeyValueErrorCode::NONE;
 }
 
 #if ALLOW_QUOTELESS_STRINGS
@@ -261,7 +261,7 @@ KeyValueErrorCode KeyValueRoot::Parse(const char* str)
 		return KeyValueErrorCode::NO_INPUT;
 
 	KeyValueErrorCode err = KeyValue::Parse(str, true);
-	if (err != KeyValueErrorCode::NO_ERROR)
+	if (err != KeyValueErrorCode::NONE)
 		return err;
 
 	if (bufferSize > 0)
@@ -274,7 +274,7 @@ KeyValueErrorCode KeyValueRoot::Parse(const char* str)
 	}
 
 	// All good. Return no error
-	return KeyValueErrorCode::NO_ERROR;
+	return KeyValueErrorCode::NONE;
 }
 
 
@@ -510,7 +510,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 		{
 			KeyValueErrorCode error = ReadQuotedString(str, key);
 
-			if (error != KeyValueErrorCode::NO_ERROR)
+			if (error != KeyValueErrorCode::NONE)
 				return error;
 
 			break;
@@ -571,7 +571,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 			kvString_t stringValue;
 			KeyValueErrorCode error = ReadQuotedString(str, stringValue);
 
-			if (error != KeyValueErrorCode::NO_ERROR)
+			if (error != KeyValueErrorCode::NONE)
 				return error;
 
 			pair = CreateKVPair(key, stringValue, rootNode->readPool);
@@ -590,7 +590,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 			pair->lastChild = nullptr;
 			pair->childCount = 0;
 			KeyValueErrorCode error = pair->Parse(str, false);
-			if (error != KeyValueErrorCode::NO_ERROR)
+			if (error != KeyValueErrorCode::NONE)
 				return error;
 
 			pair->hasChildren = true;
@@ -641,7 +641,7 @@ end:
 		lastChild = lastKV;
 	}
 
-	return KeyValueErrorCode::NO_ERROR;
+	return KeyValueErrorCode::NONE;
 }
 
 // Copies all of the keys and values out of the input string and copies them all into a massive buffer.
