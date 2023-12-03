@@ -24,7 +24,7 @@
 #define POOL_INCREMENT_LENGTH 4
 
 #ifdef _WIN32
-#define strcasecmp stricmp
+#define strcasecmp _stricmp
 #endif
 
 //////////////////////
@@ -144,7 +144,7 @@ void KeyValuePool<T>::Drain()
 		free(nextPool->pool);
 		old = nextPool;
 		nextPool = nextPool->next;
-		free(old);
+		delete old;
 	}
 
 	firstPool = nullptr;
@@ -202,12 +202,10 @@ KeyValueRoot::KeyValueRoot()
 	solidified = false;
 	rootNode = this;
 
-	key.string = nullptr;
-	key.length = 0;
+	key = { nullptr, 0 };
 
-	hasChildren = true;
-	children = nullptr;
-	childCount = 0;
+	isNode = true;
+	data.node = { nullptr, nullptr, 0 };
 
 	stringBuffer = nullptr;
 
@@ -244,7 +242,7 @@ void KeyValueRoot::Solidify()
 	solidified = true;
 
 	// We need to take the pool, move the stuff into their correct positions, and delete it
-	if (childCount > 0)
+	if (data.node.childCount > 0)
 	{
 		KeyValue::Solidify();
 	}
@@ -293,19 +291,20 @@ KeyValue& KeyValue::GetInvalid()
 
 void KeyValue::Solidify()
 {
-	KeyValue* newArray = new KeyValue[childCount];
+	KeyValue* newArray = new KeyValue[data.node.childCount];
 
-	KeyValue* current = children;
+	KeyValue* current = data.node.children;
 
-	children = newArray;
+	data.node.children = newArray;
 
 	// Is it worth block copying out of the pool?
 
-	for (size_t i = 0; i < childCount; i++)
+	size_t cc = data.node.childCount;
+	for (size_t i = 0; i < cc; i++)
 	{
 		memcpy(&newArray[i], current, sizeof(KeyValue));
 
-		if (newArray[i].hasChildren && newArray[i].childCount > 0)
+		if (newArray[i].isNode && newArray[i].data.node.childCount > 0)
 			newArray[i].Solidify();
 
 		// Maintains compatibility with linked list code
@@ -314,40 +313,38 @@ void KeyValue::Solidify()
 		current = current->next;
 	}
 
-	newArray[childCount - 1].next = nullptr;
+	newArray[cc - 1].next = nullptr;
 
 }
 
 
-KeyValue& KeyValue::InternalGet(const char* key) const
+KeyValue& KeyValue::InternalGet(const char* keyName) const
 {
-	if (!hasChildren || childCount <= 0 || !IsValid())
+	if (!isNode || data.node.childCount <= 0 || !IsValid())
 		return GetInvalid();
+
 
 	// If we're solid, we can use a quicker route
 	if (rootNode->solidified)
 	{
-		for (size_t i = 0; i < childCount; i++)
+		size_t cc = data.node.childCount;
+		for (size_t i = 0; i < cc; i++)
 		{
-			if (strcasecmp(children[i].key.string, key) == 0)
+			if (strcasecmp(data.node.children[i].key.string, keyName) == 0)
 			{
-				return children[i];
+				return data.node.children[i];
 			}
 		}
-
 	}
 	else
 	{
-		KeyValue* current = children;
-		for (size_t i = 0; i < childCount; i++)
+		for (KeyValue* current = data.node.children; current; current = current->next)
 		{
-			if (strcasecmp(current->key.string, key) == 0)
+			if (strcasecmp(current->key.string, keyName) == 0)
 			{
 				return *current;
 			}
-			current = current->next;
 		}
-
 	}
 
 	return GetInvalid();
@@ -356,16 +353,16 @@ KeyValue& KeyValue::InternalGet(const char* key) const
 KeyValue& KeyValue::InternalAt(size_t index) const
 {
 	// If we cant get something, return invalid
-	if(!hasChildren || childCount <= 0 || index < 0 || index >= childCount || !IsValid())
+	if(!isNode || data.node.childCount <= 0 || index < 0 || index >= data.node.childCount || !IsValid())
 		return GetInvalid();
 
 	if (rootNode->solidified)
 	{
-		return children[index];
+		return data.node.children[index];
 	}
 	else
 	{
-		KeyValue* current = children;
+		KeyValue* current = data.node.children;
 		for (int i = 0; i != index; i++)
 		{
 			current = current->next;
@@ -375,17 +372,17 @@ KeyValue& KeyValue::InternalAt(size_t index) const
 }
 
 
-KeyValue* KeyValue::Add(const char* key, const char* value)
+KeyValue* KeyValue::Add(const char* keyName, const char* value)
 {
 	// Can't add to a solid kv without kids!
-	if (rootNode->solidified && !hasChildren)
+	if (rootNode->solidified && !isNode)
 		return nullptr;
 
 
-	size_t keyLength = strlen(key);
+	size_t keyLength = strlen(keyName);
 	char*& copiedKey = *rootNode->writePoolStrings.Create();
 	copiedKey = new char[keyLength + 1];
-	memcpy(copiedKey, key, keyLength);
+	memcpy(copiedKey, keyName, keyLength);
 	copiedKey[keyLength] = '\0';
 
 	size_t valueLength = strlen(value);
@@ -397,53 +394,52 @@ KeyValue* KeyValue::Add(const char* key, const char* value)
 	KeyValue* newKV = CreateKVPair({ copiedKey, keyLength }, { copiedValue, valueLength }, rootNode->writePool);
 	newKV->next = nullptr;
 
-	if (children)
+	if (data.node.children)
 	{
-		lastChild->next = newKV;
+		data.node.lastChild->next = newKV;
 	}
 	else
 	{
-		children = newKV;
+		data.node.children = newKV;
 	}
-	lastChild = newKV;
-	childCount++;
+	data.node.lastChild = newKV;
+	data.node.childCount++;
 
 	return newKV;
 }
 
-KeyValue* KeyValue::AddNode(const char* key)
+KeyValue* KeyValue::AddNode(const char* keyName)
 {
 	// Can't add to a solid kv without kids!
-	if (rootNode->solidified && !hasChildren)
+	if (rootNode->solidified && !isNode)
 		return nullptr;
 
 	KeyValue* node = rootNode->writePool.Create();
 
-	size_t keyLength = strlen(key);
+	size_t keyLength = strlen(keyName);
 	char*& copiedKey = *rootNode->writePoolStrings.Create();
 	copiedKey = new char[keyLength + 1];
-	memcpy(copiedKey, key, keyLength);
+	memcpy(copiedKey, keyName, keyLength);
 	copiedKey[keyLength] = '\0';
 
 	node->key = { copiedKey, keyLength };
 
-	node->rootNode = rootNode;
-	node->children = nullptr;
-	node->lastChild = nullptr;
-	node->childCount = 0;
-	node->next = nullptr;
-	node->hasChildren = true;
+	node->isNode = true;
+	node->data.node = { nullptr, nullptr, 0 };
 
-	if (childCount == 0)
+	node->rootNode = rootNode;
+	node->next = nullptr;
+
+	if (data.node.childCount == 0)
 	{
-		children = node;
+		data.node.children = node;
 	}
 	else
 	{
-		lastChild->next = node;
+		data.node.lastChild->next = node;
 	}
-	lastChild = node;
-	childCount++;
+	data.node.lastChild = node;
+	data.node.childCount++;
 	
 	return node;
 }
@@ -451,41 +447,42 @@ KeyValue* KeyValue::AddNode(const char* key)
 bool KeyValue::IsValid() const
 {
 	KeyValue* invalid = &GetInvalid();
-	return next != invalid && lastChild != invalid;
+	return next != invalid && data.node.lastChild != invalid;
 }
 
-KeyValue::KeyValue(bool invalid)
+KeyValue::KeyValue(bool invalid) : data({})
 {
 	if (invalid)
 	{
 		// Zero the key and the value
-		key.string = nullptr;
-		key.length = 0;
-		value.string = nullptr;
-		value.length = 0;
-		hasChildren = false;
-
+		key = { nullptr, 0 };
+		
 		// No family
+		isNode = false;
 		rootNode = nullptr;
 		next = this;
-		lastChild = this;
+		data.node.lastChild = this;
+
+		// Empty value
+		data.leaf.value.string = nullptr;
+		data.leaf.value.length = 0;
 	}
 }
 
 KeyValue::~KeyValue()
 {
-	if (hasChildren && childCount > 0 && rootNode->solidified)
+	if (isNode && data.node.childCount > 0 && rootNode->solidified)
 	{
-		delete[] children;
+		delete[] data.node.children;
 	}
 }
 
-KeyValue* KeyValue::CreateKVPair(kvString_t key, kvString_t string, KeyValuePool<KeyValue>& pool)
+KeyValue* KeyValue::CreateKVPair(kvString_t keyName, kvString_t string, KeyValuePool<KeyValue>& pool)
 {
 	KeyValue* kv = pool.Create();
-	kv->key = key;
-	kv->value = string;
-	kv->hasChildren = false;
+	kv->key = keyName;
+	kv->data.leaf.value = string;
+	kv->isNode = false;
 	kv->rootNode = rootNode;
 	return kv;
 }
@@ -500,7 +497,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 
 		c = *str;
 
-		kvString_t key;
+		kvString_t pairkey;
 
 		// Parse the key out
 		switch (c)
@@ -508,7 +505,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 
 		case STRING_CONTAINER:
 		{
-			KeyValueErrorCode error = ReadQuotedString(str, key);
+			KeyValueErrorCode error = ReadQuotedString(str, pairkey);
 
 			if (error != KeyValueErrorCode::NONE)
 				return error;
@@ -544,13 +541,13 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 			// It's gotta be a quoteless string
 		default:
 
-			key = ReadQuotelessString(str);
+			pairkey = ReadQuotelessString(str);
 
 			break;
 #endif
 		}
 
-		rootNode->bufferSize += key.length + 1; // + 1 for \0
+		rootNode->bufferSize += pairkey.length + 1; // + 1 for \0
 
 		// We've got our key, so let's find its value
 
@@ -574,7 +571,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 			if (error != KeyValueErrorCode::NONE)
 				return error;
 
-			pair = CreateKVPair(key, stringValue, rootNode->readPool);
+			pair = CreateKVPair(pairkey, stringValue, rootNode->readPool);
 
 			rootNode->bufferSize += stringValue.length + 1; // + 1 for \0
 			break;
@@ -586,16 +583,13 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 
 			//skip over the BLOCK_BEGIN
 			str++;
-			pair->children = nullptr;
-			pair->lastChild = nullptr;
-			pair->childCount = 0;
+			pair->isNode = true;
+			pair->data.node = { nullptr, nullptr, 0 };
 			KeyValueErrorCode error = pair->Parse(str, false);
 			if (error != KeyValueErrorCode::NONE)
 				return error;
 
-			pair->hasChildren = true;
-
-			pair->key = key;
+			pair->key = pairkey;
 
 			break;
 		}
@@ -612,7 +606,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 		{
 
 			kvString_t stringValue = ReadQuotelessString(str);
-			pair = CreateKVPair(key, stringValue, rootNode->readPool);
+			pair = CreateKVPair(pairkey, stringValue, rootNode->readPool);
 
 			rootNode->bufferSize += stringValue.length + 1; // + 1 for \0
 
@@ -622,14 +616,14 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 		}
 
 
-		childCount++;
+		data.node.childCount++;
 		if (lastKV)
 		{
 			lastKV->next = pair;
 		}
 		else
 		{
-			children = pair;
+			data.node.children = pair;
 		}
 		lastKV = pair;
 
@@ -638,7 +632,7 @@ end:
 	if (lastKV)
 	{
 		lastKV->next = nullptr;
-		lastChild = lastKV;
+		data.node.lastChild = lastKV;
 	}
 
 	return KeyValueErrorCode::NONE;
@@ -647,8 +641,8 @@ end:
 // Copies all of the keys and values out of the input string and copies them all into a massive buffer.
 void KeyValue::BuildData(char*& destBuffer)
 {
-	KeyValue* current = children;
-	for (size_t i = 0; i < childCount; i++)
+	KeyValue* current = data.node.children;
+	for (size_t i = 0; i < data.node.childCount; i++)
 	{
 		// Copy the string in, null terminate it, and increment the destBuffer
 		memcpy(destBuffer, current->key.string, current->key.length);
@@ -656,19 +650,19 @@ void KeyValue::BuildData(char*& destBuffer)
 		current->key.string = destBuffer;
 		destBuffer += current->key.length + 1;
 
-		if (current->hasChildren)
+		if (current->isNode)
 		{
-			if (current->childCount > 0)
+			if (current->data.node.childCount > 0)
 			{
 				current->BuildData(destBuffer);
 			}
 		}
 		else
 		{
-			memcpy(destBuffer, current->value.string, current->value.length);
-			destBuffer[current->value.length] = '\0';
-			current->value.string = destBuffer;
-			destBuffer += current->value.length + 1;
+			memcpy(destBuffer, current->data.leaf.value.string, current->data.leaf.value.length);
+			destBuffer[current->data.leaf.value.length] = '\0';
+			current->data.leaf.value.string = destBuffer;
+			destBuffer += current->data.leaf.value.length + 1;
 		}
 
 		current = current->next;
@@ -703,7 +697,7 @@ void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount) const
 {
 	// Make a solidified version?
 
-	for (KeyValue* current = children; current; current = current->next)
+	for (KeyValue* current = data.node.children; current; current = current->next)
 	{
 
 		TabFill(str, maxLength, tabCount);
@@ -713,7 +707,7 @@ void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount) const
 		CopyAndShift(str, current->key.string, maxLength, current->key.length);
 		CopyAndShift(str, "\" ", maxLength, 2);
 
-		if (current->hasChildren)
+		if (current->isNode)
 		{
 			
 			CopyAndShift(str, "\n", maxLength, 1);
@@ -730,7 +724,7 @@ void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount) const
 			
 			// Copy in the value
 			CopyAndShift(str, "\"", maxLength, 1);
-			CopyAndShift(str, current->value.string, maxLength, current->value.length);
+			CopyAndShift(str, current->data.leaf.value.string, maxLength, current->data.leaf.value.length);
 			CopyAndShift(str, "\"\n", maxLength, 2);
 
 		}
@@ -755,14 +749,14 @@ char* KeyValue::ToString() const
 size_t KeyValue::ToStringLength(int tabCount) const
 {
 	size_t len = 0;
-	for (KeyValue* current = children; current; current = current->next)
+	for (KeyValue* current = data.node.children; current; current = current->next)
 	{
 		len += tabCount * sizeof(TAB_STYLE);
 
 		// String container + Key + String container 
 		len += sizeof(STRING_CONTAINER) + current->key.length + sizeof(STRING_CONTAINER);
 
-		if (current->hasChildren)
+		if (current->isNode)
 		{
 			// If we have kids, new line + tabs + start block + new line
 			len += 1 + tabCount * sizeof(TAB_STYLE) + sizeof(BLOCK_BEGIN) + 1;
@@ -777,7 +771,7 @@ size_t KeyValue::ToStringLength(int tabCount) const
 			// If we don't have any children, we just have a value
 
 			// Space + string container + value + string container + new line
-			len += 1 + sizeof(STRING_CONTAINER) + current->value.length + sizeof(STRING_CONTAINER) + 1;
+			len += 1 + sizeof(STRING_CONTAINER) + current->data.leaf.value.length + sizeof(STRING_CONTAINER) + 1;
 
 		}
 	}

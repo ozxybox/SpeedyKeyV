@@ -64,15 +64,15 @@ class KeyValue
 {
 public:
 
-	KeyValue& Get(const char* key)				{ return InternalGet( key ); }
-	const KeyValue& Get(const char* key) const	{ return (const KeyValue&)InternalGet( key ); }
+	KeyValue& Get(const char* keyName)				{ return InternalGet( keyName ); }
+	const KeyValue& Get(const char* keyName) const	{ return (const KeyValue&)InternalGet( keyName ); }
 	[[deprecated]] KeyValue& Get(size_t index)					{ return InternalAt( index ); }
 	[[deprecated]] const KeyValue& Get(size_t index) const		{ return (const KeyValue&)InternalAt( index ); }
 	KeyValue& At(size_t index)					{ return InternalAt( index ); }
 	const KeyValue& At(size_t index) const		{ return (const KeyValue&)InternalAt( index ); }
 
-	inline KeyValue& operator[](const char* key) { return Get(key); }
-	inline const KeyValue& operator[](const char* key) const { return Get(key); }
+	inline KeyValue& operator[](const char* keyName) { return Get(keyName); }
+	inline const KeyValue& operator[](const char* keyName) const { return Get(keyName); }
 	inline KeyValue& operator[](size_t index) { return At(index); }
 	inline const KeyValue& operator[](size_t index) const { return At(index); }
 
@@ -90,21 +90,21 @@ public:
 
 	const kvString_t& Key() const { return key; }
 
-	bool HasChildren() const { return hasChildren; }
-	size_t ChildCount() const { return hasChildren ? childCount : 0; }
-	KeyValue* Children() const { return hasChildren ? children : nullptr; }
+	bool HasChildren() const { return isNode; }
+	size_t ChildCount() const { return isNode ? data.node.childCount : 0; }
+	KeyValue* Children() const { return isNode ? data.node.children : nullptr; }
 
-	kvString_t Value() const { return hasChildren ? kvString_t(nullptr, 0u) : value; }
+	kvString_t Value() const { return isNode ? kvString_t(nullptr, 0u) : data.leaf.value; }
 	
-	KeyValue* LastChild() { return lastChild; }
-	const KeyValue* LastChild() const { return lastChild; }
+	KeyValue* LastChild() { return data.node.lastChild; }
+	const KeyValue* LastChild() const { return data.node.lastChild; }
 
 	KeyValue* Next() { return next; }
 	const KeyValue* Next() const { return next; }
 
 protected:
 
-	KeyValue() {}
+	KeyValue() : data( {} ) {}
 
 	// This is used for creating the invalid kv
 	// Could be better?
@@ -113,10 +113,10 @@ protected:
 	// Deleting should really only be done by the root
 	~KeyValue();
 
-	KeyValue& InternalGet(const char* key) const;
+	KeyValue& InternalGet(const char* keyName) const;
 	KeyValue& InternalAt(size_t index) const;
 
-	KeyValue* CreateKVPair(kvString_t key, kvString_t string, KeyValuePool<KeyValue>& pool);
+	KeyValue* CreateKVPair(kvString_t keyName, kvString_t string, KeyValuePool<KeyValue>& pool);
 
 	KeyValueErrorCode Parse(const char*& str, const bool isRoot);
 	void BuildData(char*& destBuffer);
@@ -129,28 +129,35 @@ protected:
 	// An invalid KV for use in returns with references
 	static KeyValue& GetInvalid();
 
+	// Top level root parent node
+	KeyValueRoot* rootNode;
+
+	// Next sibling pair
+	KeyValue* next;
+
 
 	kvString_t key;
 
 	// These two structs must be the same size!!
 	union
 	{
-		kvString_t value;
+		struct 
+		{
+			kvString_t value;
+		} leaf;
 
-		// Maybe swap this with a hash map at some point?
-		struct {
-
+		struct
+		{
 			KeyValue* children;
-			size_t childCount;
-		};
-	};
-	KeyValue* lastChild;
+			KeyValue* lastChild;
+			unsigned int  childCount;
+		} node;
+	
+	} data;
 
-	bool hasChildren;
+	// Determines whether we should be using data.node or data.leaf
+	bool isNode;
 
-	KeyValue* next;
-
-	KeyValueRoot* rootNode;
 };
 
 template<typename T>
