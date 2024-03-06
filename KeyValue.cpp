@@ -740,6 +740,7 @@ void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount) const
 			
 			// Copy in the value
 			CopyAndShift(str, "\"", maxLength, 1);
+			// FIXME: Figure out how to handle printing escapes
 			CopyAndShift(str, current->data.leaf.value.string, maxLength, current->data.leaf.value.length);
 			CopyAndShift(str, "\"\n", maxLength, 2);
 
@@ -786,8 +787,14 @@ size_t KeyValue::ToStringLength(int tabCount) const
 		{
 			// If we don't have any children, we just have a value
 
-			// Space + string container + value + string container + new line
-			len += 1 + sizeof(STRING_CONTAINER) + current->data.leaf.value.length + sizeof(STRING_CONTAINER) + 1;
+			// Space + string container + value + count of escapes + string container + new line
+			int escaped = 0;
+			char* string = current->data.leaf.value.string;
+			for ( int i = 0; i < current->data.leaf.value.length; i += 1 )
+			{
+				escaped += ( string[i] == '\\' || string[i] == '"' );
+			}
+			len += 1 + sizeof(STRING_CONTAINER) + current->data.leaf.value.length + escaped + sizeof(STRING_CONTAINER) + 1;
 
 		}
 	}
