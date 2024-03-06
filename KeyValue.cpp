@@ -77,7 +77,11 @@ KeyValueErrorCode ReadQuotedString(const char*& str, kvString_t& inset)
 
 	inset.string = const_cast<char*>(str);
 
-	for (char c = *str; c && c != STRING_CONTAINER; c = *++str);
+	bool escaped = true;
+	for (char c = *str; c && (c != STRING_CONTAINER || escaped); c = *++str)
+	{
+		escaped = c == '\\';
+	}
 
 	if (!*str)
 	{
@@ -658,10 +662,23 @@ void KeyValue::BuildData(char*& destBuffer)
 		}
 		else
 		{
-			memcpy(destBuffer, current->data.leaf.value.string, current->data.leaf.value.length);
-			destBuffer[current->data.leaf.value.length] = '\0';
+			char* string = current->data.leaf.value.string;
+			size_t size = current->data.leaf.value.length;
+			for ( int j = 0; j < size; j++ )
+			{
+				char c = *string++;
+				if ( c == '\\' && ( *string == '\\' || *string == '"' ) )
+				{
+					destBuffer[j] = *string++;
+					size -= 1;
+				}
+				else
+					destBuffer[j] = c;
+			}
+			destBuffer[size] = '\0';
 			current->data.leaf.value.string = destBuffer;
-			destBuffer += current->data.leaf.value.length + 1;
+			current->data.leaf.value.length = size;
+			destBuffer += size + 1;
 		}
 
 		current = current->next;
