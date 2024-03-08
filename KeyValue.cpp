@@ -77,7 +77,7 @@ KeyValueErrorCode ReadQuotedString(const char*& str, kvString_t& inset)
 
 	inset.string = const_cast<char*>(str);
 
-	bool escaped = true;
+	bool escaped = false;
 	for (char c = *str; c && (c != STRING_CONTAINER || escaped); c = *++str)
 	{
 		escaped = c == '\\';
@@ -667,13 +667,37 @@ void KeyValue::BuildData(char*& destBuffer)
 			for ( int j = 0; j < size; j++ )
 			{
 				char c = *string++;
-				if ( c == '\\' && ( *string == '\\' || *string == '"' ) )
+				if ( c == '\\' )
 				{
-					destBuffer[j] = *string++;
-					size -= 1;
+					static const char table[][2] =
+					{
+						{'\\', '\\'},
+						{'"', '"' },
+						{'?', '?' },
+						{'\'', '\''},
+						{'n', '\n'},
+						{'t', '\t'},
+						{'v', '\v'},
+						{'b', '\b'},
+						{'r', '\r'},
+						{'f', '\f'},
+						{'a', '\a'}
+					};
+
+					char peeked = *string;
+					for ( const char* entry : table )
+					{
+						if ( entry[0] == peeked )
+						{
+							destBuffer[j] = entry[1];
+							string++;
+							size -= 1;
+							goto end;
+						}
+					}
 				}
-				else
-					destBuffer[j] = c;
+				destBuffer[j] = c;
+				end: 0;
 			}
 			destBuffer[size] = '\0';
 			current->data.leaf.value.string = destBuffer;
