@@ -118,8 +118,8 @@ protected:
 
 	KeyValue* CreateKVPair(kvString_t keyName, kvString_t string, KeyValuePool<KeyValue>& pool);
 
-	KeyValueErrorCode Parse(const char*& str, const bool isRoot);
-	void BuildData(char*& destBuffer);
+	KeyValueErrorCode Parse(const char*& str, const bool isRoot, const bool supportEscapes);
+	void BuildData(char*& destBuffer, const bool supportEscapes);
 	void Solidify();
 
 
@@ -210,7 +210,7 @@ public:
 
 	// Makes access times faster and decreases memory usage at the cost of irreversibly making the kv read-only and slowing down delete time
 	void Solidify();
-	KeyValueErrorCode Parse(const char* str);
+	KeyValueErrorCode Parse(const char* str, const bool supportEscapes = false);
 
 private:
 

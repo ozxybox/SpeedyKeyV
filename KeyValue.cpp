@@ -65,7 +65,7 @@ startOfSkip:
 	}
 }
 
-KeyValueErrorCode ReadQuotedString(const char*& str, kvString_t& inset)
+KeyValueErrorCode ReadQuotedString(const char*& str, kvString_t& inset, const bool supportEscapes)
 {
 	/*
 	We probably should check if this is a quote, but, we already know that it's a quote due to earlier logic.
@@ -77,7 +77,11 @@ KeyValueErrorCode ReadQuotedString(const char*& str, kvString_t& inset)
 
 	inset.string = const_cast<char*>(str);
 
-	for (char c = *str; c && c != STRING_CONTAINER; c = *++str);
+	bool escaped = false;
+	for (char c = *str; c && (c != STRING_CONTAINER || escaped); c = *++str)
+	{
+		escaped = supportEscapes && c == '\\';
+	}
 
 	if (!*str)
 	{
@@ -253,12 +257,12 @@ void KeyValueRoot::Solidify()
 	// Sadly, we can't drain the string pool... It contains keys and values for newly added nodes and pairs
 }
 
-KeyValueErrorCode KeyValueRoot::Parse(const char* str)
+KeyValueErrorCode KeyValueRoot::Parse(const char* str, const bool supportEscapes)
 {
 	if ( !str )
 		return KeyValueErrorCode::NO_INPUT;
 
-	KeyValueErrorCode err = KeyValue::Parse(str, true);
+	KeyValueErrorCode err = KeyValue::Parse(str, true, supportEscapes);
 	if (err != KeyValueErrorCode::NONE)
 		return err;
 
@@ -268,7 +272,7 @@ KeyValueErrorCode KeyValueRoot::Parse(const char* str)
 
 		// Can't straight pass it, otherwise it'd mess with it
 		char* temp = stringBuffer;
-		BuildData(temp);
+		BuildData(temp, supportEscapes);
 	}
 
 	// All good. Return no error
@@ -486,7 +490,7 @@ KeyValue* KeyValue::CreateKVPair(kvString_t keyName, kvString_t string, KeyValue
 	return kv;
 }
 
-KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
+KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot, const bool supportEscapes)
 {
 	KeyValue* lastKV = nullptr;
 	char c;
@@ -504,7 +508,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 
 		case STRING_CONTAINER:
 		{
-			KeyValueErrorCode error = ReadQuotedString(str, pairkey);
+			KeyValueErrorCode error = ReadQuotedString(str, pairkey, supportEscapes);
 
 			if (error != KeyValueErrorCode::NONE)
 				return error;
@@ -565,7 +569,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 		case STRING_CONTAINER:
 		{
 			kvString_t stringValue;
-			KeyValueErrorCode error = ReadQuotedString(str, stringValue);
+			KeyValueErrorCode error = ReadQuotedString(str, stringValue, supportEscapes);
 
 			if (error != KeyValueErrorCode::NONE)
 				return error;
@@ -584,7 +588,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 			str++;
 			pair->isNode = true;
 			pair->data.node = { nullptr, nullptr, 0 };
-			KeyValueErrorCode error = pair->Parse(str, false);
+			KeyValueErrorCode error = pair->Parse(str, false, supportEscapes);
 			if (error != KeyValueErrorCode::NONE)
 				return error;
 
@@ -638,7 +642,7 @@ end:
 }
 
 // Copies all of the keys and values out of the input string and copies them all into a massive buffer.
-void KeyValue::BuildData(char*& destBuffer)
+void KeyValue::BuildData(char*& destBuffer, const bool supportEscapes)
 {
 	KeyValue* current = data.node.children;
 	for (size_t i = 0; i < data.node.childCount; i++)
@@ -653,11 +657,51 @@ void KeyValue::BuildData(char*& destBuffer)
 		{
 			if (current->data.node.childCount > 0)
 			{
-				current->BuildData(destBuffer);
+				current->BuildData(destBuffer, supportEscapes);
 			}
 		}
-		else
+		else if ( supportEscapes )
 		{
+			char* string = current->data.leaf.value.string;
+			size_t size = current->data.leaf.value.length;
+			for ( int j = 0; j < size; j++ )
+			{
+				char c = *string++;
+				if ( c == '\\' )
+				{
+					static bool initialized = false;
+					static char table[255] = { 0 };
+					if ( !initialized )
+					{
+						table['\\'] = '\\';
+						table['"'] = '"';
+						table['?'] = '?';
+						table['\''] = '\'';
+						table['n'] = '\n';
+						table['t'] = '\t';
+						table['v'] = '\v';
+						table['b'] = '\b';
+						table['r'] = '\r';
+						table['f'] = '\f';
+						table['a'] = '\a';
+						initialized = true;
+					}
+
+					char peeked = *string;
+					if ((peeked = table[peeked])) {
+						destBuffer[j] = peeked;
+						string++;
+						size -= 1;
+						continue;
+					}
+				}
+				destBuffer[j] = c;
+			}
+			destBuffer[size] = '\0';
+			current->data.leaf.value.string = destBuffer;
+			current->data.leaf.value.length = size;
+			destBuffer += size + 1;
+		} else {
 			memcpy(destBuffer, current->data.leaf.value.string, current->data.leaf.value.length);
 			destBuffer[current->data.leaf.value.length] = '\0';
 			current->data.leaf.value.string = destBuffer;
@@ -723,6 +767,7 @@ void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount) const
 			
 			// Copy in the value
 			CopyAndShift(str, "\"", maxLength, 1);
+			// FIXME: Figure out how to handle printing escapes
 			CopyAndShift(str, current->data.leaf.value.string, maxLength, current->data.leaf.value.length);
 			CopyAndShift(str, "\"\n", maxLength, 2);
 
@@ -769,8 +814,14 @@ size_t KeyValue::ToStringLength(int tabCount) const
 		{
 			// If we don't have any children, we just have a value
 
-			// Space + string container + value + string container + new line
-			len += 1 + sizeof(STRING_CONTAINER) + current->data.leaf.value.length + sizeof(STRING_CONTAINER) + 1;
+			// Space + string container + value + count of escapes + string container + new line
+			int escaped = 0;
+			char* string = current->data.leaf.value.string;
+			for ( int i = 0; i < current->data.leaf.value.length; i += 1 )
+			{
+				escaped += ( string[i] == '\\' || string[i] == '"' );
+			}
+			len += 1 + sizeof(STRING_CONTAINER) + current->data.leaf.value.length + escaped + sizeof(STRING_CONTAINER) + 1;
 
 		}
 	}
