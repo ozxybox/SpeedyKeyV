@@ -16,6 +16,8 @@
 #define BLOCK_END '}'
 #define STRING_CONTAINER '"'
 
+#define ESCAPE_CHAR '\\'
+
 #define SINGLE_LINE_COMMENT "//"
 
 #define TAB_STYLE "    "
@@ -65,6 +67,7 @@ startOfSkip:
 	}
 }
 
+template<bool useEscapeSequences>
 KeyValueErrorCode ReadQuotedString(const char*& str, kvString_t& inset)
 {
 	/*
@@ -77,7 +80,32 @@ KeyValueErrorCode ReadQuotedString(const char*& str, kvString_t& inset)
 
 	inset.string = const_cast<char*>(str);
 
-	for (char c = *str; c && c != STRING_CONTAINER; c = *++str);
+	if ( useEscapeSequences )
+	{
+		for (char c = *str; c;)
+		{
+			if ( c == STRING_CONTAINER )
+			{
+				break;
+			}
+			else if (c == ESCAPE_CHAR)
+			{
+				c = *++str;
+				if (c == '\0')
+					break;
+
+				c = *++str;
+			}
+			else
+			{
+				c = *++str;
+			}
+		}
+	}
+	else
+	{
+		for ( char c = *str; c && c != STRING_CONTAINER; c = *++str );
+	}
 
 	if (!*str)
 	{
@@ -253,12 +281,17 @@ void KeyValueRoot::Solidify()
 	// Sadly, we can't drain the string pool... It contains keys and values for newly added nodes and pairs
 }
 
-KeyValueErrorCode KeyValueRoot::Parse(const char* str)
+KeyValueErrorCode KeyValueRoot::Parse(const char* str, bool useEscapeSequences)
 {
 	if ( !str )
 		return KeyValueErrorCode::NO_INPUT;
 
-	KeyValueErrorCode err = KeyValue::Parse(str, true);
+	KeyValueErrorCode err;
+	if ( useEscapeSequences )
+		err = KeyValue::Parse<true, true>( str );
+	else
+		err = KeyValue::Parse<true, false>( str );
+
 	if (err != KeyValueErrorCode::NONE)
 		return err;
 
@@ -268,7 +301,10 @@ KeyValueErrorCode KeyValueRoot::Parse(const char* str)
 
 		// Can't straight pass it, otherwise it'd mess with it
 		char* temp = stringBuffer;
-		BuildData(temp);
+		if ( useEscapeSequences )
+			BuildData<true>( temp );
+		else
+			BuildData<false>( temp );
 	}
 
 	// All good. Return no error
@@ -486,7 +522,8 @@ KeyValue* KeyValue::CreateKVPair(kvString_t keyName, kvString_t string, KeyValue
 	return kv;
 }
 
-KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
+template<bool isRoot, bool useEscapeSequences>
+KeyValueErrorCode KeyValue::Parse(const char*& str)
 {
 	KeyValue* lastKV = nullptr;
 	char c;
@@ -504,7 +541,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 
 		case STRING_CONTAINER:
 		{
-			KeyValueErrorCode error = ReadQuotedString(str, pairkey);
+			KeyValueErrorCode error = ReadQuotedString<useEscapeSequences>( str, pairkey );
 
 			if (error != KeyValueErrorCode::NONE)
 				return error;
@@ -565,7 +602,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 		case STRING_CONTAINER:
 		{
 			kvString_t stringValue;
-			KeyValueErrorCode error = ReadQuotedString(str, stringValue);
+			KeyValueErrorCode error = ReadQuotedString<useEscapeSequences>(str, stringValue);
 
 			if (error != KeyValueErrorCode::NONE)
 				return error;
@@ -584,7 +621,7 @@ KeyValueErrorCode KeyValue::Parse(const char*& str, const bool isRoot)
 			str++;
 			pair->isNode = true;
 			pair->data.node = { nullptr, nullptr, 0 };
-			KeyValueErrorCode error = pair->Parse(str, false);
+			KeyValueErrorCode error = pair->Parse<false, useEscapeSequences>(str);
 			if (error != KeyValueErrorCode::NONE)
 				return error;
 
@@ -637,36 +674,86 @@ end:
 	return KeyValueErrorCode::NONE;
 }
 
+template<bool useEscapeSequences>
+void CopyString( char *&destBuffer, kvString_t &str );
+
+template<>
+void CopyString<true>( char*& destBuffer, kvString_t& str )
+{
+	char *cur = str.string;
+	char *end = str.string + str.length;
+	char *oStart = destBuffer;
+	char *o = oStart;
+	while ( cur < end )
+	{
+		if ( *cur == ESCAPE_CHAR )
+		{
+			cur++;
+			switch ( *cur )
+			{
+			case 'n': *o = '\n'; break;
+			case 't': *o = '\t'; break;
+			case 'v': *o = '\v'; break;
+			case 'b': *o = '\b'; break;
+			case 'r': *o = '\r'; break;
+			case 'f': *o = '\f'; break;
+			case 'a': *o = '\a'; break;
+			case '\\': *o = '\\'; break;
+			case '\?': *o = '\?'; break;
+			case '\'': *o = '\''; break;
+			case '\"': *o = '\"'; break;
+			default: *o = *cur; break;
+			}
+			o++;
+			cur++;
+		}
+		else
+		{
+			*o = *cur;
+			o++;
+			cur++;
+		}
+	}
+	*o = '\0';
+
+	str.string = oStart;
+	str.length = o - oStart;
+	destBuffer = o + 1;
+}
+
+template<>
+void CopyString<false>( char*& destBuffer, kvString_t& str )
+{
+	// Copy the string in, null terminate it, and increment the destBuffer
+	memcpy( destBuffer, str.string, str.length );
+	destBuffer[str.length] = '\0';
+	str.string = destBuffer;
+	destBuffer += str.length + 1;
+}
+
 // Copies all of the keys and values out of the input string and copies them all into a massive buffer.
+template<bool useEscapeSequences>
 void KeyValue::BuildData(char*& destBuffer)
 {
 	KeyValue* current = data.node.children;
 	for (size_t i = 0; i < data.node.childCount; i++)
 	{
-		// Copy the string in, null terminate it, and increment the destBuffer
-		memcpy(destBuffer, current->key.string, current->key.length);
-		destBuffer[current->key.length] = '\0';
-		current->key.string = destBuffer;
-		destBuffer += current->key.length + 1;
+		CopyString<useEscapeSequences>(destBuffer, current->key);
 
 		if (current->isNode)
 		{
 			if (current->data.node.childCount > 0)
 			{
-				current->BuildData(destBuffer);
+				current->BuildData<useEscapeSequences>(destBuffer);
 			}
 		}
 		else
 		{
-			memcpy(destBuffer, current->data.leaf.value.string, current->data.leaf.value.length);
-			destBuffer[current->data.leaf.value.length] = '\0';
-			current->data.leaf.value.string = destBuffer;
-			destBuffer += current->data.leaf.value.length + 1;
+			CopyString<useEscapeSequences>( destBuffer, current->data.leaf.value );
 		}
 
 		current = current->next;
 	}
-
 }
 
 // Copies memory and shifts the inputs
