@@ -675,10 +675,10 @@ end:
 }
 
 template<bool useEscapeSequences>
-void CopyString( char *&destBuffer, kvString_t &str );
+static void CopyString( char *&destBuffer, kvString_t &str );
 
 template<>
-void CopyString<true>( char*& destBuffer, kvString_t& str )
+static void CopyString<true>( char*& destBuffer, kvString_t& str )
 {
 	char *cur = str.string;
 	char *end = str.string + str.length;
@@ -722,7 +722,7 @@ void CopyString<true>( char*& destBuffer, kvString_t& str )
 }
 
 template<>
-void CopyString<false>( char*& destBuffer, kvString_t& str )
+static void CopyString<false>( char*& destBuffer, kvString_t& str )
 {
 	// Copy the string in, null terminate it, and increment the destBuffer
 	memcpy( destBuffer, str.string, str.length );
@@ -757,7 +757,7 @@ void KeyValue::BuildData(char*& destBuffer)
 }
 
 // Copies memory and shifts the inputs
-void CopyAndShift(char*& dest, char* src, size_t& destLength, size_t srcLength)
+static void CopyAndShift(char*& dest, char* src, size_t& destLength, size_t srcLength)
 {
 	size_t minLength = std::min(destLength, srcLength);
 	memcpy(dest, src, minLength);
@@ -770,8 +770,7 @@ void CopyAndShift(char*& dest, const char* src, size_t& destLength, size_t srcLe
 	return CopyAndShift(dest, const_cast<char*>(src), destLength, srcLength);
 }
 
-
-void TabFill(char*& str, size_t& maxLength, int tabCount)
+static void TabFill(char*& str, size_t& maxLength, int tabCount)
 {
 	for (int i = 0; i < tabCount; i++)
 	{
@@ -779,7 +778,38 @@ void TabFill(char*& str, size_t& maxLength, int tabCount)
 	}
 }
 
-void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount) const
+static void WriteString(char*& dest, size_t& destLength, kvString_t str, bool useEscapeSequences)
+{
+	if (useEscapeSequences)
+	{
+		char* start = dest;
+		for ( int i = 0; i < str.length && destLength >= 2; i++ )
+		{
+			switch ( str.string[i] )
+			{
+			case '\n': *(dest++) = '\\'; *(dest++) = 'n'; break;
+			case '\t': *(dest++) = '\\'; *(dest++) = 't'; break;
+			case '\v': *(dest++) = '\\'; *(dest++) = 'v'; break;
+			case '\b': *(dest++) = '\\'; *(dest++) = 'b'; break;
+			case '\r': *(dest++) = '\\'; *(dest++) = 'r'; break;
+			case '\f': *(dest++) = '\\'; *(dest++) = 'f'; break;
+			case '\a': *(dest++) = '\\'; *(dest++) = 'a'; break;
+			case '\\': *(dest++) = '\\'; *(dest++) = '\\'; break;
+			case '\?': *(dest++) = '\\'; *(dest++) = '\?'; break;
+			case '\'': *(dest++) = '\\'; *(dest++) = '\''; break;
+			case '\"': *(dest++) = '\\'; *(dest++) = '\"'; break;
+			default: *( dest++ ) = str.string[i]; break;
+			}
+		}
+		destLength -= ( dest - start );
+	}
+	else
+	{
+		CopyAndShift(dest, str.string, destLength, str.length);
+	}
+}
+
+void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount, bool useEscapeSequences) const
 {
 	// Make a solidified version?
 
@@ -790,41 +820,38 @@ void KeyValue::ToString(char*& str, size_t& maxLength, int tabCount) const
 
 		// Copy in the key
 		CopyAndShift(str, "\"", maxLength, 1);
-		CopyAndShift(str, current->key.string, maxLength, current->key.length);
-		CopyAndShift(str, "\" ", maxLength, 2);
+		WriteString(str, maxLength, current->key, useEscapeSequences);
+		CopyAndShift(str, "\"", maxLength, 1);
 
 		if (current->isNode)
 		{
-			
 			CopyAndShift(str, "\n", maxLength, 1);
 			TabFill(str, maxLength, tabCount);
 			CopyAndShift(str, "{\n", maxLength, 2);
 
-			current->ToString(str, maxLength, tabCount + 1);
+			current->ToString(str, maxLength, tabCount + 1, useEscapeSequences);
 
 			TabFill(str, maxLength, tabCount);
 			CopyAndShift(str, "}\n", maxLength, 2);
 		}
 		else
 		{
-			
 			// Copy in the value
-			CopyAndShift(str, "\"", maxLength, 1);
-			CopyAndShift(str, current->data.leaf.value.string, maxLength, current->data.leaf.value.length);
+			CopyAndShift(str, " \"", maxLength, 2);
+			WriteString(str, maxLength, current->data.leaf.value, useEscapeSequences);
 			CopyAndShift(str, "\"\n", maxLength, 2);
-
 		}
 	}
 }
 
-char* KeyValue::ToString() const
+char* KeyValue::ToString(bool useEscapeSequences) const
 {
 	// Length of all kvs + 1 for the null terminator
-	size_t length = ToStringLength(0) + 1;
+	size_t length = ToStringLength(0, useEscapeSequences) + 1;
 
 	char* str = new char[length];
 	
-	ToString(str, length);
+	ToString(str, length, useEscapeSequences);
 
 	// Null terminate it
 	str[length - 1] = 0;
@@ -832,7 +859,38 @@ char* KeyValue::ToString() const
 	return str;
 }
 
-size_t KeyValue::ToStringLength(int tabCount) const
+static size_t GetStringLength(kvString_t str, bool useEscapeSequences)
+{
+	if (!useEscapeSequences)
+		return str.length;
+
+	int n = 0;
+	for ( int i = 0; i < str.length; i++ )
+	{
+		switch ( str.string[i] )
+		{
+		case 'n':
+		case 't':
+		case 'v':
+		case 'b':
+		case 'r':
+		case 'f':
+		case 'a':
+		case '\\':
+		case '\?':
+		case '\'':
+		case '\"':
+			n += 2;
+			break;
+		default:
+			n += 1;
+			break;
+		}
+	}
+	return n;
+}
+
+size_t KeyValue::ToStringLength(int tabCount, bool useEscapeSequences) const
 {
 	size_t len = 0;
 	for (KeyValue* current = data.node.children; current; current = current->next)
@@ -840,14 +898,14 @@ size_t KeyValue::ToStringLength(int tabCount) const
 		len += tabCount * sizeof(TAB_STYLE);
 
 		// String container + Key + String container 
-		len += sizeof(STRING_CONTAINER) + current->key.length + sizeof(STRING_CONTAINER);
+		len += sizeof(STRING_CONTAINER) + GetStringLength(current->key, useEscapeSequences) + sizeof( STRING_CONTAINER );
 
 		if (current->isNode)
 		{
 			// If we have kids, new line + tabs + start block + new line
 			len += 1 + tabCount * sizeof(TAB_STYLE) + sizeof(BLOCK_BEGIN) + 1;
 
-			len += current->ToStringLength(tabCount + 1);
+			len += current->ToStringLength(tabCount + 1, useEscapeSequences);
 
 			// End line + tabs + end block + end line
 			len += 1 + tabCount * sizeof(TAB_STYLE) + sizeof(BLOCK_END) + 1;
@@ -857,7 +915,8 @@ size_t KeyValue::ToStringLength(int tabCount) const
 			// If we don't have any children, we just have a value
 
 			// Space + string container + value + string container + new line
-			len += 1 + sizeof(STRING_CONTAINER) + current->data.leaf.value.length + sizeof(STRING_CONTAINER) + 1;
+			
+			len += 1 + sizeof(STRING_CONTAINER) + GetStringLength( current->data.leaf.value, useEscapeSequences ) + sizeof(STRING_CONTAINER) + 1;
 
 		}
 	}
