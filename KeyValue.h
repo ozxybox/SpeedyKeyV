@@ -82,8 +82,8 @@ public:
 	KeyValue* AddNode(const char* key);
 
 
-	void ToString(char* str, size_t maxLength) const { ToString(str, maxLength, 0); if (maxLength > 0) str[0] = '\0'; }
-	char* ToString() const;
+	void ToString(char* str, size_t maxLength, bool useEscapeSequences = false) const { ToString(str, maxLength, 0, useEscapeSequences); if (maxLength > 0) str[0] = '\0'; }
+	char* ToString(bool useEscapeSequences = false) const;
 
 	bool IsValid() const;
 
@@ -125,8 +125,8 @@ protected:
 	void Solidify();
 
 
-	void ToString(char*& str, size_t& maxLength, int tabCount) const;
-	size_t ToStringLength(int tabCount) const;
+	void ToString(char*& str, size_t& maxLength, int tabCount, bool useEscapeSequences) const;
+	size_t ToStringLength(int tabCount, bool useEscapeSequences) const;
 
 	// An invalid KV for use in returns with references
 	static KeyValue& GetInvalid();
