@@ -675,10 +675,10 @@ end:
 }
 
 template<bool useEscapeSequences>
-static void CopyString( char *&destBuffer, kvString_t &str );
+static void KVCopyString( char *&destBuffer, kvString_t &str );
 
 template<>
-static void CopyString<true>( char*& destBuffer, kvString_t& str )
+void KVCopyString<true>( char*& destBuffer, kvString_t& str )
 {
 	char *cur = str.string;
 	char *end = str.string + str.length;
@@ -722,7 +722,7 @@ static void CopyString<true>( char*& destBuffer, kvString_t& str )
 }
 
 template<>
-static void CopyString<false>( char*& destBuffer, kvString_t& str )
+void KVCopyString<false>( char*& destBuffer, kvString_t& str )
 {
 	// Copy the string in, null terminate it, and increment the destBuffer
 	memcpy( destBuffer, str.string, str.length );
@@ -738,7 +738,7 @@ void KeyValue::BuildData(char*& destBuffer)
 	KeyValue* current = data.node.children;
 	for (size_t i = 0; i < data.node.childCount; i++)
 	{
-		CopyString<useEscapeSequences>(destBuffer, current->key);
+		KVCopyString<useEscapeSequences>(destBuffer, current->key);
 
 		if (current->isNode)
 		{
@@ -749,7 +749,7 @@ void KeyValue::BuildData(char*& destBuffer)
 		}
 		else
 		{
-			CopyString<useEscapeSequences>( destBuffer, current->data.leaf.value );
+			KVCopyString<useEscapeSequences>( destBuffer, current->data.leaf.value );
 		}
 
 		current = current->next;
